@@ -98,6 +98,7 @@ coeff_pack = bestsol['details']['sol'].get_path('coeffs')
 coeffs = np.asarray(coeff_pack[0])
 breaks_raw = np.asarray(coeff_pack[1])
 
+
 # Option 1: normalise the returned breakpoints
 #breaks = (breaks_raw - breaks_raw[0]) / (breaks_raw[-1] - breaks_raw[0])
 
