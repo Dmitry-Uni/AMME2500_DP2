@@ -75,3 +75,9 @@ def state_space_matrices(V_x):
     ])
 
     return A, B
+
+#State space standard form
+def state_space_dynamics(x, u, V_i):
+    A, B = state_space_matrices(V_i)
+    x_dot = A @ x + B.flatten() * u
+    return x_dot
