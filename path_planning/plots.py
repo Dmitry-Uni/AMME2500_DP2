@@ -32,7 +32,7 @@ def plot_path(sol, ax=None, **kwargs):
     if ax is None:
         ax = plt.gca()
     path = sol.get_path()
-    print("Path: ", path)
+    #print("Path: ", path)
     path_line, = ax.plot(path[:, 0], path[:, 1], **kwargs)
     return path_line
 

@@ -104,12 +104,32 @@ u, path, curvature, radius = curvature_and_radius_from_coeffs(
     num_points=500
 )
 
+
+# Print final solution details
 final_sol = bestsol['details']['sol']
 print('\nFinal best solution')
 print('Cost:', bestsol['cost'])
 print('Path length:', bestsol['details']['length'])
 print('Minimum dynamic clearance:', bestsol['details']['min_clearance'])
 print('Collision violations:', bestsol['details']['collision_violation_count'])
+
+def final_path_details(sol):
+    coeff_pack = sol.get_path('coeffs')
+    coeffs = np.asarray(coeff_pack[0])
+    breaks = np.asarray(coeff_pack[1])
+    u, path, curvature, radius = curvature_and_radius_from_coeffs(
+        coeffs,
+        breaks,
+        num_points=500
+    )
+    return u, path, curvature, radius
+
+
+# Visualizations
+
+# Animate the vehicle following the final path while obstacles move.
+# To save a GIF, use: save_path='dynamic_obstacle_avoidance.gif'
+anim = pp.animate_solution(final_sol, interval=80, vehicle_length=5.0, vehicle_width=2.5)
 
 #path
 plt.figure()
@@ -140,6 +160,6 @@ plt.title("Radius of Curvature Along Path")
 plt.ylim(0, np.nanpercentile(radius[np.isfinite(radius)], 95))
 plt.show()
 
-# Animate the vehicle following the final path while obstacles move.
-# To save a GIF, use: save_path='dynamic_obstacle_avoidance.gif'
-pp.animate_solution(final_sol, interval=80, vehicle_length=5.0, vehicle_width=2.5)
+plt.close('all')
+
+# End of main_dynamic.py
