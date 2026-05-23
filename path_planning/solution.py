@@ -20,10 +20,16 @@ class SplinePath:
     @staticmethod
     def from_list(environment, xy, resolution=100, normalized=False):
         control_points = np.array(xy).reshape(-1, 2)
+
         if normalized:
-            control_points[:,0] *= environment.width
-            control_points[:,1] *= environment.height
-            
+            r = environment.robot_radius
+
+            # Map x from [0, 1] to [r, width - r]
+            control_points[:, 0] = r + control_points[:, 0] * (environment.width - 2*r)
+
+            # Map y from [0, 1] to [r, height - r]
+            control_points[:, 1] = r + control_points[:, 1] * (environment.height - 2*r)
+
         return SplinePath(environment, control_points, resolution)
 
     # Get path
@@ -63,13 +69,10 @@ class SplinePath:
         tt = np.linspace(0, 1, self.resolution)
         path = cs(tt)
 
-        # Clip path to environment
-        path = self.environment.clip_path(path)
-
         #print(f"CubicSpline coefficients: {cs.c}")  # Debug: print the coefficients of the cubic spline
 
         if "coeffs" in args:
-            return [cs.c, tt]  # Return coefficients and parameter values for debugging
+            return [cs.c, t]
 
         return path
         

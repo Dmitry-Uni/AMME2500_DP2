@@ -96,29 +96,13 @@ bestsol, pop = PSO(problem, callback=callback, **pso_params)
 coeff_pack = bestsol['details']['sol'].get_path('coeffs')
 
 coeffs = np.asarray(coeff_pack[0])
-breaks_raw = np.asarray(coeff_pack[1])
-
-
-# Option 1: normalise the returned breakpoints
-#breaks = (breaks_raw - breaks_raw[0]) / (breaks_raw[-1] - breaks_raw[0])
-
-# Option 2: force uniform breaks if the spline was built over linspace(0, 1, n)
-breaks = np.linspace(0, 1, coeffs.shape[1] + 1)
+breaks = np.asarray(coeff_pack[1])
 
 u, path, curvature, radius = curvature_and_radius_from_coeffs(
     coeffs,
     breaks,
     num_points=500
 )
-
-plt.figure()
-plt.plot(path[:, 0], path[:, 1], linewidth=1.8)
-plt.axis("equal")
-plt.grid(True)
-plt.xlabel("x [m]")
-plt.ylabel("y [m]")
-plt.title("Spline Path")
-plt.show()
 
 final_sol = bestsol['details']['sol']
 print('\nFinal best solution')
