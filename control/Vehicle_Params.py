@@ -17,6 +17,9 @@ lr = whlb * 0.53  # m, distance from CoG to rear
 Cf = 107500  # N/rad, front cornering stiffness 
 Cr = 117500  # N/rad, rear cornering stiffness
 
+    #Steering angle sensor sampling rate; source: https://ietresearch.onlinelibrary.wiley.com/doi/10.1049/itr2.12085
+steering_sampling_rate = 100  # Hz
 
 #Vehicle speeds
-V_x = np.array([11.0, 17.0, 22.0, 31.0])  # m/s
+V_i = np.array([11.0, 17.0, 22.0, 31.0])  # m/s
+V_x = V_i[0]  # m/s, initial speed for control design

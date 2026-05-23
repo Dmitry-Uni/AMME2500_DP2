@@ -79,4 +79,7 @@ def curvature_and_radius_from_coeffs(coeffs, breaks, num_points=500):
     nonzero = np.abs(curvature) > eps
     radius[nonzero] = 1 / np.abs(curvature[nonzero])
 
-    return u_eval, path, curvature, radius
+    # Heading angle
+    heading = np.arctan2(dy, dx)
+
+    return u_eval, path, curvature, radius, heading

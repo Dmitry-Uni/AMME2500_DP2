@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from control import Vehicle_Params
 from control.path_processing import curvature_and_radius_from_coeffs
 import path_planning as pp
 from pso import PSO
@@ -13,7 +14,7 @@ env_params = {
     'width': 100,
     'height': 8,
     'robot_radius': 1.94,  # Approximate radius of a typical car (for collision checking)
-    'vehicle_speed': 8.0,
+    'vehicle_speed': Vehicle_Params.V_x,
     'start': [5, 2.6],
     'goal': [95, 2.6],
 }
@@ -99,7 +100,7 @@ coeff_pack = bestsol['details']['sol'].get_path('coeffs')
 coeffs = np.asarray(coeff_pack[0])
 breaks = np.asarray(coeff_pack[1])
 
-u, path, curvature, radius = curvature_and_radius_from_coeffs(
+u, path, curvature, radius, heading = curvature_and_radius_from_coeffs(
     coeffs,
     breaks,
     num_points=500
@@ -111,19 +112,23 @@ final_sol = bestsol['details']['sol']
 print('\nFinal best solution')
 print('Cost:', bestsol['cost'])
 print('Path length:', bestsol['details']['length'])
+print('Total Time:', bestsol['details']['times'][-1])
 print('Minimum dynamic clearance:', bestsol['details']['min_clearance'])
-print('Collision violations:', bestsol['details']['collision_violation_count'])
+print('Collision violations:', bestsol['details']['collision_violation_count'], '\n')
 
 def final_path_details():
     coeff_pack = bestsol['details']['sol'].get_path('coeffs')
     coeffs = np.asarray(coeff_pack[0])
     breaks = np.asarray(coeff_pack[1])
-    u, path, curvature, radius = curvature_and_radius_from_coeffs(
+    u, path, curvature, radius, heading = curvature_and_radius_from_coeffs(
         coeffs,
         breaks,
         num_points=500
     )
-    return u, path, curvature, radius
+    return u, path, curvature, radius, heading
+
+def final_path_length_and_time():
+    return bestsol['details']['length'], bestsol['details']['times'][-1]
 
 
 # Visualizations
@@ -132,6 +137,7 @@ def final_path_details():
 # To save a GIF, use: save_path='dynamic_obstacle_avoidance.gif'
 #anim = pp.animate_solution(final_sol, interval=80, vehicle_length=5.0, vehicle_width=2.5)
 
+'''
 #path
 plt.figure()
 plt.plot(path[:, 0], path[:, 1], linewidth=1.8)
@@ -142,7 +148,55 @@ plt.ylabel("y [m]")
 plt.title("Spline Path")
 plt.show()
 
+# Path with dual y-axes for heading angle
+fig, ax1 = plt.subplots()
+
+color = 'tab:red'
+ax1.set_xlabel('x [m]')
+ax1.set_ylabel('y [m]', color=color)
+ax1.plot(path[:, 0], path[:, 1], color=color)
+ax1.tick_params(axis='y', labelcolor=color)
+
+ax2 = ax1.twinx()  # instantiate a second Axes that shares the same x-axis
+
+color = 'tab:blue'
+ax2.set_ylabel('heading angle, psi [rad]', color=color)  # we already handled the x-label with ax1
+ax2.plot(path[:, 0], heading, color=color)
+ax2.tick_params(axis='y', labelcolor=color)
+
+fig.tight_layout()  # otherwise the right y-label is slightly clipped
+plt.show()
+
+# Path with dual y-axes for curvature
+fig, ax1 = plt.subplots()
+
+color = 'tab:red'
+ax1.set_xlabel('x [m]')
+ax1.set_ylabel('y [m]', color=color)
+ax1.plot(path[:, 0], path[:, 1], color=color)
+ax1.tick_params(axis='y', labelcolor=color)
+
+ax2 = ax1.twinx()  # instantiate a second Axes that shares the same x-axis
+
+color = 'tab:blue'
+ax2.set_ylabel('curvature, kappa [1/m]', color=color)  # we already handled the x-label with ax1
+ax2.plot(path[:, 0], curvature, color=color)
+ax2.tick_params(axis='y', labelcolor=color)
+
+fig.tight_layout()  # otherwise the right y-label is slightly clipped
+plt.show()
 '''
+
+'''
+# heading angle
+plt.figure()
+plt.plot(path[:, 0], heading, linewidth=1.8)
+plt.grid(True)
+plt.xlabel("x [m]")
+plt.ylabel("Heading angle, psi [rad]")
+plt.title("Heading Angle Along Spline")
+plt.show()
+
 #curvature
 plt.figure()
 plt.plot(u, curvature, linewidth=1.8)
