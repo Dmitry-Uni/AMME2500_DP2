@@ -43,8 +43,8 @@ def init_path():
     print('Final path details obtained from main_dynamic.py \n')
     return u, path, curvature, radius, heading
 
-
-u, path, curvature, radius, heading = init_path()
+## Temporary global variables to debug
+#u, path, curvature, radius, heading = init_path()
 
 def find_nearest(array, value):
     array = np.asarray(array)
@@ -54,16 +54,14 @@ def find_nearest(array, value):
     return idx
 
 
-def nearest_ref(X, Y):
-    if path.size == 0:
-        raise ValueError('Path array is empty')
-
+def nearest_ref(X, Y, path, curvature, heading):
     distances = np.linalg.norm(path - np.array([X, Y]), axis=1)
     idx = int(np.argmin(distances))
-    nearest_x = path[:,0][idx]
-    nearest_y = path[:,1][idx]
+
+    nearest_x = path[idx, 0]
+    nearest_y = path[idx, 1]
 
     return nearest_x, nearest_y, curvature[idx], heading[idx]
 
-def path_size():
+def path_size(path):
     return path.shape[0]

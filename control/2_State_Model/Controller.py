@@ -4,7 +4,6 @@ This module supports being run directly. When executed as a script it will
 ensure the `control` package directory is on `sys.path` so sibling modules
 like `Vehicle_Params` can be imported.
 """
-from operator import pos
 import os
 import sys
 import numpy as np
@@ -28,34 +27,40 @@ except Exception:
     import Vehicle_Params  # type: ignore
 
 
+def wrap_to_pi(angle):
+    return (angle + np.pi) % (2 * np.pi) - np.pi
+
+
 def error_states(pos, psi, pos_ref, psi_ref):
     X, Y = pos
     X_ref, Y_ref = pos_ref
 
-    e_y = np.sqrt((X_ref - X) ** 2 + (Y_ref - Y) ** 2)
-    e_psi = psi - psi_ref
+    dx = X - X_ref
+    dy = Y - Y_ref
 
-    return e_y, e_psi
+    # Signed lateral error in the reference path frame
+    e_y = -np.sin(psi_ref) * dx + np.cos(psi_ref) * dy
+
+    # Wrapped heading error
+    e_psi = wrap_to_pi(psi - psi_ref)
+
+    return np.array([e_y, e_psi])
 
 def feedback_control(e_y, e_psi):
     # Simple proportional controller for demonstration
     k_y = 0.5  # Lateral error gain
     k_phi = 1.0  # Heading error gain
 
-    steering_angle_fb = -k_y * e_y - k_phi * e_psi
-    return steering_angle_fb
+    delta_fb = -k_y * e_y - k_phi * e_psi
+    return delta_fb
 
 def feedforward_control(curvature):
-    # Simple feedforward control based on curvature
-    k_ff = 1.0  # Feedforward gain
-    steering_angle_ff = k_ff * curvature
-    return steering_angle_ff
+    return np.arctan(Vehicle_Params.whlb * curvature)
 
 def total_control(e_y, e_psi, curvature):
-    steering_angle_fb = feedback_control(e_y, e_psi)
-    steering_angle_ff = feedforward_control(curvature)
-    total_steering_angle = steering_angle_fb + steering_angle_ff
-    return total_steering_angle
+    delta_fb = feedback_control(e_y, e_psi)
+    delta_ff = feedforward_control(curvature)
+    return delta_fb + delta_ff
 
 def main():
     print("Running Controller main() \n")
