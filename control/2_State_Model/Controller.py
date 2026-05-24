@@ -42,7 +42,7 @@ def error_states(pos, psi, pos_ref, psi_ref):
     e_y = -np.sin(psi_ref) * dx + np.cos(psi_ref) * dy
 
     # Wrapped heading error
-    e_psi = wrap_to_pi(psi - psi_ref)
+    e_psi = np.array([wrap_to_pi(psi - psi_ref)])
 
     return np.array([e_y, e_psi])
 
@@ -62,23 +62,27 @@ def total_control(e_y, e_psi, curvature):
     delta_ff = feedforward_control(curvature)
     return delta_fb + delta_ff
 
+
+# Main function to demonstrate usage
 def main():
     print("Running Controller main() \n")
     # Example usage: call Reference_States.init_path() if available
     if hasattr(Reference_States, 'init_path'):
-        Reference_States.init_path()
+        u, path, curvature, radius, heading = Reference_States.init_path()
 
     pos = np.array([10, 4])
     psi = 0.1  # Example heading angle in radians
 
-    nearest_x, nearest_y, curvature, heading = Reference_States.nearest_ref(pos[0], pos[1])
+    nearest_x, nearest_y, curvature, heading = Reference_States.nearest_ref(pos[0], pos[1], path, curvature, heading)
     print("Nearest reference state for (10, 4):", nearest_x, nearest_y, curvature, heading)
 
-    pos_ref = np.array([nearest_x, nearest_y])
+    pos_ref = np.array([[nearest_x], [nearest_y]])
     psi_ref = heading
 
-    x = np.array(error_states(pos, psi, pos_ref, psi_ref))
+    x = error_states(pos, psi, pos_ref, psi_ref)
     print("Error states for (10, 4):", x)
+    delta = total_control(x[0], x[1], curvature)
+    print("Total control input (steering angle in radians):", delta)
 
 
 if __name__ == '__main__':

@@ -23,11 +23,12 @@ def load_path_from_main():
     if not hasattr(main_dynamic, 'final_path_details'):
         raise AttributeError('main_dynamic does not expose final_path_details')
 
-    result = main_dynamic.final_path_details()
-    if len(result) != 5:
-        raise ValueError('final_path_details() must return (u, path, curvature, radius, heading)')
+    result = main_dynamic.final_path_details('bestsol')
+    if len(result) != 6:
+        raise ValueError('final_path_details() must return (u, path, curvature, radius, heading, bestsol)')
 
-    u, path, curvature, radius, heading = result
+    u, path, curvature, radius, heading, bestsol = result
+    main_dynamic.print_final_solution_details(bestsol)  # Print solution details from main_dynamic
     path = np.asarray(path)
     curvature = np.asarray(curvature)
     heading = np.asarray(heading)
@@ -54,14 +55,14 @@ def find_nearest(array, value):
     return idx
 
 
-def nearest_ref(X, Y, path, curvature, heading):
-    distances = np.linalg.norm(path - np.array([X, Y]), axis=1)
+def nearest_ref(X, Y, path_ref, curvature_ref, heading_ref):
+    distances = np.linalg.norm(path_ref - np.array([X, Y]), axis=1)
     idx = int(np.argmin(distances))
 
-    nearest_x = path[idx, 0]
-    nearest_y = path[idx, 1]
+    nearest_x = path_ref[idx, 0]
+    nearest_y = path_ref[idx, 1]
 
-    return nearest_x, nearest_y, curvature[idx], heading[idx]
+    return nearest_x, nearest_y, curvature_ref[idx], heading_ref[idx]
 
 def path_size(path):
     return path.shape[0]

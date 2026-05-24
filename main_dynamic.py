@@ -92,52 +92,55 @@ pso_params = {
     'resetting': 30,
 }
 
-#bestsol, pop = PSO(problem, callback=callback, **pso_params)
-bestsol, pop = PSO(problem, **pso_params)
+def generate_path():
+    bestsol, pop = PSO(problem, **pso_params)
 
-coeff_pack = bestsol['details']['sol'].get_path('coeffs')
-
-coeffs = np.asarray(coeff_pack[0])
-breaks = np.asarray(coeff_pack[1])
-
-u, path, curvature, radius, heading = curvature_and_radius_from_coeffs(
-    coeffs,
-    breaks,
-    num_points=500
-)
-
-
-# Print final solution details
-final_sol = bestsol['details']['sol']
-print('\nFinal best solution')
-print('Cost:', bestsol['cost'])
-print('Path length:', bestsol['details']['length'])
-print('Total Time:', bestsol['details']['times'][-1])
-print('Minimum dynamic clearance:', bestsol['details']['min_clearance'])
-print('Collision violations:', bestsol['details']['collision_violation_count'], '\n')
-
-def final_path_details():
     coeff_pack = bestsol['details']['sol'].get_path('coeffs')
     coeffs = np.asarray(coeff_pack[0])
     breaks = np.asarray(coeff_pack[1])
+
+    return bestsol, pop, coeffs, breaks
+
+def final_path_details(*args):
+    bestsol, pop, coeffs, breaks = generate_path()
+
     u, path, curvature, radius, heading = curvature_and_radius_from_coeffs(
         coeffs,
         breaks,
         num_points=500
     )
-    return u, path, curvature, radius, heading
+    if 'bestsol' in args:
+        return u, path, curvature, radius, heading, bestsol
+    
+    else:
+        return u, path, curvature, radius, heading
 
-def final_path_length_and_time():
+def final_path_length_and_time(bestsol):
     return bestsol['details']['length'], bestsol['details']['times'][-1]
 
 
+def print_final_solution_details(bestsol):
+    # Print final solution details
+    print('\nFinal best solution')
+    print('Cost:', bestsol['cost'])
+    print('Path length:', bestsol['details']['length'])
+    print('Total Time:', bestsol['details']['times'][-1])
+    print('Minimum dynamic clearance:', bestsol['details']['min_clearance'])
+    print('Collision violations:', bestsol['details']['collision_violation_count'], '\n')
+
+if __name__ == '__main__':
+    bestsol, pop, coeffs, breaks = generate_path()
+    print("Final best solution")
+
+
+'''
 # Visualizations
 
 # Animate the vehicle following the final path while obstacles move.
 # To save a GIF, use: save_path='dynamic_obstacle_avoidance.gif'
 #anim = pp.animate_solution(final_sol, interval=80, vehicle_length=5.0, vehicle_width=2.5)
 
-'''
+
 #path
 plt.figure()
 plt.plot(path[:, 0], path[:, 1], linewidth=1.8)

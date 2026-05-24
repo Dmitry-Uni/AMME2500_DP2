@@ -20,6 +20,9 @@ Cr = 117500  # N/rad, rear cornering stiffness
     #Steering angle sensor sampling rate; source: https://ietresearch.onlinelibrary.wiley.com/doi/10.1049/itr2.12085
 steering_sampling_rate = 100  # Hz
 
+    #Maximum steering angle; source: https://www.tesla.com/en_au/model3
+max_steering_angle = np.radians(36)  # radians, typical for passenger
+
 #Vehicle speeds
 V_i = np.array([11.0, 17.0, 22.0, 31.0])  # m/s
 V_x = V_i[0]  # m/s, initial speed for control design
