@@ -32,6 +32,12 @@ def wrap_to_pi(angle):
 
 
 def error_states(pos, psi, pos_ref, psi_ref):
+    pos = np.asarray(pos, dtype=float).reshape(2)
+    pos_ref = np.asarray(pos_ref, dtype=float).reshape(2)
+
+    psi = float(np.asarray(psi).squeeze())
+    psi_ref = float(np.asarray(psi_ref).squeeze())
+
     X, Y = pos
     X_ref, Y_ref = pos_ref
 
@@ -42,9 +48,9 @@ def error_states(pos, psi, pos_ref, psi_ref):
     e_y = -np.sin(psi_ref) * dx + np.cos(psi_ref) * dy
 
     # Wrapped heading error
-    e_psi = np.array([wrap_to_pi(psi - psi_ref)])
+    e_psi = wrap_to_pi(psi - psi_ref)
 
-    return np.array([e_y, e_psi])
+    return np.array([[e_y], [e_psi]])
 
 def feedback_control(e_y, e_psi):
     # Simple proportional controller for demonstration
