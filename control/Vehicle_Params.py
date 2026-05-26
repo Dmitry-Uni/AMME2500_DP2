@@ -10,8 +10,8 @@ yaw_inertia = 2400  # kg*m^2, estimated
     #Vehicle wheelbase; source: https://www.tesla.com/en_au/model3
 whlb = 2.875  # m
     #CoG distances using weight distribution; source: https://www.tesla.com/en_au/model3
-lf = whlb * 0.47  # m, distance from CoG to front axle
-lr = whlb * 0.53  # m, distance from CoG to rear
+lr = whlb * 0.47  # m, distance from CoG to rear axle
+lf = whlb * 0.53  # m, distance from CoG to front axle
 
     #Stiffness coefficients; source: https://www.studeersnel.nl/nl/document/technische-universiteit-eindhoven/road-vehicle-dynamics/exercise-1-tesla-cg/92372964
 Cf = 107500  # N/rad, front cornering stiffness 
