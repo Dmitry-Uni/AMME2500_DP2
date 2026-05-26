@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import Controller
-import Reference_States
+import control.Reference_States as Reference_States
 
 try:
     from . import Vehicle_Params  # type: ignore

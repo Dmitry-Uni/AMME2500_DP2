@@ -10,21 +10,23 @@ import numpy as np
 
 try:
     # Prefer package-relative imports when available
-    from . import Reference_States  # type: ignore
+    from .. import Reference_States  # type: ignore
 except Exception:
-    parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    if parent_dir not in sys.path:
-        sys.path.insert(0, parent_dir)
-    import Reference_States  # type: ignore
+    # Fallback for direct execution: add project root to sys.path
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    from control import Reference_States  # type: ignore
 
 try:
     # Prefer package-relative imports when available
-    from . import Vehicle_Params  # type: ignore
+    from .. import Vehicle_Params  # type: ignore
 except Exception:
-    parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    if parent_dir not in sys.path:
-        sys.path.insert(0, parent_dir)
-    import Vehicle_Params  # type: ignore
+    # Fallback for direct execution: add project root to sys.path
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    from control import Vehicle_Params  # type: ignore
 
 
 def wrap_to_pi(angle):

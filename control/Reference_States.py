@@ -6,9 +6,9 @@ import sys
 import numpy as np
 
 try:
-    from ... import main_dynamic  # type: ignore
+    import main_dynamic
 except Exception:
-    grandparent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    grandparent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '.', '.'))
     if grandparent_dir not in sys.path:
         sys.path.insert(0, grandparent_dir)
     import main_dynamic  # type: ignore
