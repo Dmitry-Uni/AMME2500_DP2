@@ -43,18 +43,17 @@ def build_state_matrices():
 
 def build_output_matrices():
 
-    # Output: y = [e_y, e_psi]^T
+    # Output: y = [e_y, e_psi, r]^T
     # State vector: x = [e_y, e_psi, v_y, r]^T
-    # e_y and e_psi are the measured outputs, while v_y and r are not directly measured.
-    # We can use e_y to plot global vehicle position.
-    # We can use e_psi to plot global vehicle heading and determine the controller's performance.
+    # e_y, e_psi and r are the measured outputs, while v_y cannot be directly measured.
 
     C = np.array([
         [1.0, 0.0, 0.0, 0.0],  # e_y
         [0.0, 1.0, 0.0, 0.0],  # e_psi
+        [0.0, 0.0, 0.0, 1.0]   # r
     ])  
 
-    D = np.zeros((2, 1))  # No direct feedthrough
+    D = np.zeros((3, 1))  # No direct feedthrough
     return C, D
 
 def observability_matrix(A: np.ndarray, C: np.ndarray):
