@@ -28,8 +28,8 @@ def build_state_matrices():
     B = np.array([
         [0.0],
         [0.0],
-        [2 * Cf / m],
-        [2 * Cf * lf / Iz]
+        [Cf / m],
+        [Cf * lf / Iz]
     ])
 
     E = np.array([
