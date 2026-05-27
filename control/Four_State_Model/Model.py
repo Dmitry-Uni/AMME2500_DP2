@@ -41,6 +41,31 @@ def build_state_matrices():
 
     return A, B, E
 
+def build_output_matrices():
+
+    # Output: y = [e_y, e_psi]^T
+    # State vector: x = [e_y, e_psi, v_y, r]^T
+    # e_y and e_psi are the measured outputs, while v_y and r are not directly measured.
+    # We can use e_y to plot global vehicle position.
+    # We can use e_psi to plot global vehicle heading and determine the controller's performance.
+
+    C = np.array([
+        [1.0, 0.0, 0.0, 0.0],  # e_y
+        [0.0, 1.0, 0.0, 0.0],  # e_psi
+        [0.0, 0.0, 0.0, 0.0],  # v_y
+        [0.0, 0.0, 0.0, 0.0]   # r
+    ])  
+
+    D = np.zeros((4, 1))  # No direct feedthrough
+    return C, D
+
+def observability_matrix(A: np.ndarray, C: np.ndarray):
+    n = A.shape[0]
+    observability_matrix = C
+    for i in range(1, n):
+        observability_matrix = np.hstack((observability_matrix, np.linalg.matrix_power(A, i) @ C))
+    return observability_matrix
+
 def controllability_matrix(A: np.ndarray, B: np.ndarray):
     n = A.shape[0]
     controllability_matrix = B
@@ -66,6 +91,16 @@ def check_controllability(A: np.ndarray, B: np.ndarray):
         print(f"The system is NOT controllable. {rank == n} (Rank: {rank}, Size: {n})")
     return rank == n
 
+def check_observability(A: np.ndarray, C: np.ndarray):
+    n = A.shape[0]
+    om = observability_matrix(A, C)
+    rank = np.linalg.matrix_rank(om)
+    if rank == n:
+        print(f"The system is observable. {rank == n} (Rank: {rank}, Size: {n})")
+    else:
+        print(f"Observability matrix does NOT have full rank. {rank == n} (Rank: {rank}, Size: {n})")
+    return rank == n
+
 def check_open_loop_modes(A: np.ndarray):
     full_eigs = np.linalg.eigvals(A)
     dyn_eigs = np.linalg.eigvals(A[2:4, 2:4])
@@ -89,6 +124,8 @@ def main():
     A, B, E = build_state_matrices()
     check_controllability(A, B)
     check_open_loop_modes(A)
+    C, D = build_output_matrices()
+    check_observability(A, C)
 
 if __name__ == "__main__":
     main()
