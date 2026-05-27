@@ -52,18 +52,19 @@ def build_output_matrices():
     C = np.array([
         [1.0, 0.0, 0.0, 0.0],  # e_y
         [0.0, 1.0, 0.0, 0.0],  # e_psi
-        [0.0, 0.0, 0.0, 0.0],  # v_y
-        [0.0, 0.0, 0.0, 0.0]   # r
     ])  
 
-    D = np.zeros((4, 1))  # No direct feedthrough
+    D = np.zeros((2, 1))  # No direct feedthrough
     return C, D
 
 def observability_matrix(A: np.ndarray, C: np.ndarray):
     n = A.shape[0]
+
     observability_matrix = C
     for i in range(1, n):
-        observability_matrix = np.hstack((observability_matrix, np.linalg.matrix_power(A, i) @ C))
+        observability_matrix = np.vstack(
+            (observability_matrix, C @ np.linalg.matrix_power(A, i))
+        )
     return observability_matrix
 
 def controllability_matrix(A: np.ndarray, B: np.ndarray):
