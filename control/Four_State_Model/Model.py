@@ -50,7 +50,6 @@ def controllability_matrix(A: np.ndarray, B: np.ndarray):
 
 def check_stability(A: np.ndarray):
     eigenvalues = np.linalg.eigvals(A)
-    print(f"Eigenvalues of A: {eigenvalues}")
     if np.all(np.real(eigenvalues) < 0):
         print("The system is stable.")
     else:
@@ -67,11 +66,29 @@ def check_controllability(A: np.ndarray, B: np.ndarray):
         print(f"The system is NOT controllable. {rank == n} (Rank: {rank}, Size: {n})")
     return rank == n
 
+def check_open_loop_modes(A: np.ndarray):
+    full_eigs = np.linalg.eigvals(A)
+    dyn_eigs = np.linalg.eigvals(A[2:4, 2:4])
+
+    print(f"Full A eigenvalues: {full_eigs}")
+    print(f"Lateral/yaw subsystem eigenvalues: {dyn_eigs}")
+
+    full_asymptotically_stable = np.all(np.real(full_eigs) < 0)
+    full_marginal = np.all(np.real(full_eigs) <= 1e-9)
+
+    dyn_stable = np.all(np.real(dyn_eigs) < 0)
+
+    print(f"Full system asymptotically stable: {full_asymptotically_stable}")
+    print(f"Full system marginally stable: {full_marginal}")
+    print(f"Lateral/yaw subsystem stable: {dyn_stable}")
+
+    return full_eigs, dyn_eigs
+
 
 def main():
     A, B, E = build_state_matrices()
     check_controllability(A, B)
-    check_stability(A)
+    check_open_loop_modes(A)
 
 if __name__ == "__main__":
     main()
