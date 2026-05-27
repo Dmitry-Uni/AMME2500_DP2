@@ -17,12 +17,12 @@ def build_state_matrices():
         [0.0, 0.0, 0.0, 1.0],
 
         [0.0, 0.0,
-         -(2 * Cf + 2 * Cr) / (m * Vx),
-         ((-2 * Cf * lf + 2 * Cr * lr) / (m * Vx)) - Vx],
+         -(Cf + Cr) / (m * Vx),
+         ((-Cf * lf + Cr * lr) / (m * Vx)) - Vx],
 
         [0.0, 0.0,
-         (-2 * Cf * lf + 2 * Cr * lr) / (Iz * Vx),
-         -(2 * Cf * lf**2 + 2 * Cr * lr**2) / (Iz * Vx)]
+         (-Cf * lf + Cr * lr) / (Iz * Vx),
+         -(Cf * lf**2 + Cr * lr**2) / (Iz * Vx)]
     ])
 
     B = np.array([

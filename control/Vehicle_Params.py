@@ -14,8 +14,10 @@ lr = whlb * 0.47  # m, distance from CoG to rear axle
 lf = whlb * 0.53  # m, distance from CoG to front axle
 
     #Stiffness coefficients; source: https://www.studeersnel.nl/nl/document/technische-universiteit-eindhoven/road-vehicle-dynamics/exercise-1-tesla-cg/92372964
-Cf = 107500  # N/rad, front cornering stiffness 
-Cr = 117500  # N/rad, rear cornering stiffness
+Cf_tire = 107500  # N/rad, front tire cornering stiffness 
+Cr_tire = 117500  # N/rad, rear tire cornering stiffness
+Cf = Cf_tire * 2  # N/rad, total front cornering stiffness (2 tires)
+Cr = Cr_tire * 2  # N/rad, total rear cornering stiffness
 
     #Steering angle sensor sampling rate; source: https://ietresearch.onlinelibrary.wiley.com/doi/10.1049/itr2.12085
 steering_sampling_rate = 100  # Hz
