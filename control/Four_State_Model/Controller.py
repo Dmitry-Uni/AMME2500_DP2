@@ -69,9 +69,59 @@ def check_closed_loop_stability(A: np.ndarray, B: np.ndarray, K: np.ndarray):
         print("The closed-loop system is NOT stable.")
     return np.all(np.real(eigenvalues) < 0)
 
+def vehicle_error(pos, pos_ref):
+    """
+    Compute the lateral error and heading error of the vehicle relative to a reference path.
+
+    Parameters:
+        pos (tuple): Current position of the vehicle (x, y, psi).
+        pos_ref (tuple): Reference position on the path (x_ref, y_ref, psi_ref).
+    Returns:
+        e_y (float): Lateral error (distance from the reference path).
+        e_psi (float): Heading error (difference in orientation).
+    """
+    x, y, psi = pos
+    x_ref, y_ref, psi_ref = pos_ref
+
+    dx = x - x_ref
+    dy = y - y_ref
+
+    e_y = -dx * np.sin(psi_ref) + dy * np.cos(psi_ref)
+
+    e_psi_raw = psi - psi_ref
+    e_psi = np.arctan2(np.sin(e_psi_raw), np.cos(e_psi_raw))
+
+    return e_y, e_psi
+
+def reconstruct_global_position(e_y, e_psi, x_ref, y_ref, psi_ref):
+    """
+    Reconstruct the global position of the vehicle from the lateral error and heading error.
+
+    Parameters:
+        e_y (float): Lateral error (distance from the reference path).
+        e_psi (float): Heading error (difference in orientation).
+        x_ref (float): Reference x position on the path.
+        y_ref (float): Reference y position on the path.
+        psi_ref (float): Reference heading angle on the path.
+    Returns:
+        x (float): Reconstructed global x position of the vehicle.
+        y (float): Reconstructed global y position of the vehicle.
+        psi (float): Reconstructed global heading angle of the vehicle.
+    """
+    # Reconstruct global position using the reference position and the errors
+    x = x_ref - e_y * np.sin(psi_ref)
+    y = y_ref + e_y * np.cos(psi_ref)
+    psi = psi_ref + e_psi
+
+    return x, y, psi
+
 def main():
     A, B, E = Model.build_state_matrices()
     C, D = Model.build_output_matrices()
+
+    Model.check_controllability(A, B)
+    Model.check_open_loop_modes(A)
+    Model.check_observability(A, C)
 
     # Build controller and observer gain matrices
     K = build_controller_matrix(A, B, controller_poles())
