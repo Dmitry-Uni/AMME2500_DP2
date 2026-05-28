@@ -83,7 +83,7 @@ def callback(data):
 
 # Run PSO
 pso_params = {
-    'max_iter': 20,
+    'max_iter': 100,
     'pop_size': 140,
     'c1': 2,
     'c2': 1,

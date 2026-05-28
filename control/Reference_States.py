@@ -13,12 +13,6 @@ except Exception:
         sys.path.insert(0, grandparent_dir)
     import main_dynamic  # type: ignore
 
-
-### Simplified Kinematic Bicycle Model for Path Following Control
-### Vehicle parameters are defined in control/Vehicle_Params.py
-
-# Returns error states for a given reference path and current vehicle state
-
 def load_path_from_main():
     if not hasattr(main_dynamic, 'final_path_details'):
         raise AttributeError('main_dynamic does not expose final_path_details')
@@ -36,13 +30,14 @@ def load_path_from_main():
     if path.size == 0:
         raise ValueError('Path data is empty')
 
-    return u, path, curvature, radius, heading
+    return u, path, curvature, radius, heading, bestsol
 
 
 def init_path():
-    u, path, curvature, radius, heading = load_path_from_main()
+    u, path, curvature, radius, heading, bestsol = load_path_from_main()
     print('Final path details obtained from main_dynamic.py \n')
-    return u, path, curvature, radius, heading
+    length, time = main_dynamic.final_path_length_and_time(bestsol)
+    return u, path, curvature, radius, heading, length, time
 
 ## Temporary global variables to debug
 #u, path, curvature, radius, heading = init_path()

@@ -84,7 +84,7 @@ def PSO(problem, **kwargs):
                     gbest = deepcopy(pop[i]['best'])
 
         w *= wdamp
-        print('Iteration {}: Best Cost = {}'.format(it + 1, gbest['cost']))
+        #print('Iteration {}: Best Cost = {}'.format(it + 1, gbest['cost']))
         
         if callable(callback):
             callback({

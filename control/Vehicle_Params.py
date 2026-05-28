@@ -1,6 +1,8 @@
 import numpy as np
 ### Vehicle Parameters - Tesla Model 3
 
+g = 9.81  # m/s^2, gravitational acceleration
+
     #Vehicle mass; source: https://www.tesla.com/en_au/model3
 mass = 1747  # kg
 
@@ -18,6 +20,10 @@ Cf_tire = 107500  # N/rad, front tire cornering stiffness
 Cr_tire = 117500  # N/rad, rear tire cornering stiffness
 Cf = Cf_tire * 2  # N/rad, total front cornering stiffness (2 tires)
 Cr = Cr_tire * 2  # N/rad, total rear cornering stiffness
+
+    #Tire friction coefficient; source: https://www.tyrereviews.com/Tyre/Michelin/e.Primacy.htm
+tire_friction_coefficient_cases = [0.85, 0.6, 0.4, 0.1] # Dry, wet, sandy road, oil slick conditions
+mu = tire_friction_coefficient_cases[0]  # Using dry road condition for control design
 
     #Steering angle sensor sampling rate; source: https://ietresearch.onlinelibrary.wiley.com/doi/10.1049/itr2.12085
 steering_sampling_rate = 100  # Hz
