@@ -1,5 +1,6 @@
 from path_planning.solution import SplinePath
 from path_planning.environment import Environment
+import numpy as np
 
 START_VIOLATION_PENALTY = 1
 GOAL_VIOLATION_PENALTY = 1

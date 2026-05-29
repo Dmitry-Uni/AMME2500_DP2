@@ -4,6 +4,7 @@ from control.path_processing import curvature_and_radius_from_coeffs
 import path_planning as pp
 from pso import PSO
 import numpy as np
+import path_generation
 
 plt.rcParams["figure.autolayout"] = True
 
@@ -15,7 +16,7 @@ env_params = {
     'height': 8,
     'robot_radius': 1.94,  # Approximate radius of a typical car (for collision checking)
     'vehicle_speed': Vehicle_Params.V_x,
-    'start': [5, 2.6],
+    'start': Vehicle_Params.initial_position,
     'goal': [95, 2.6],
 }
 env = pp.Environment(**env_params)
@@ -83,7 +84,7 @@ def callback(data):
 
 # Run PSO
 pso_params = {
-    'max_iter': 100,
+    'max_iter': path_generation.MAX_ITERATIONS,
     'pop_size': 140,
     'c1': 2,
     'c2': 1,

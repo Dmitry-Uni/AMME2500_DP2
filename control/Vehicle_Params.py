@@ -22,7 +22,7 @@ Cf = Cf_tire * 2  # N/rad, total front cornering stiffness (2 tires)
 Cr = Cr_tire * 2  # N/rad, total rear cornering stiffness
 
     #Tire friction coefficient; source: https://www.tyrereviews.com/Tyre/Michelin/e.Primacy.htm
-tire_friction_coefficient_cases = [0.85, 0.6, 0.4, 0.1] # Dry, wet, sandy road, oil slick conditions
+tire_friction_coefficient_cases = [0.9, 0.6, 0.4, 0.1] # Dry, wet, sandy road, oil slick conditions
 mu = tire_friction_coefficient_cases[0]  # Using dry road condition for control design
 
     #Steering angle sensor sampling rate; source: https://ietresearch.onlinelibrary.wiley.com/doi/10.1049/itr2.12085
@@ -31,6 +31,10 @@ steering_sampling_rate = 100  # Hz
     #Maximum steering angle; source: https://www.tesla.com/en_au/model3
 max_steering_angle = np.radians(36)  # radians, typical for passenger
 
-#Vehicle speeds
+    #Vehicle speeds
 V_i = np.array([11.0, 17.0, 22.0, 31.0])  # m/s
-V_x = V_i[3]  # m/s, initial speed for control design
+V_x = V_i[1]  # m/s, initial speed for control design
+
+    # Initial state of the vehicle (lateral error, heading error, lateral velocity, yaw rate)
+initial_state = np.array([[0.0], [0.0], [0.0], [0.0]])  # [e_y, e_psi, v_y, r]
+initial_position = [5, 2.6]  # (x, y) 

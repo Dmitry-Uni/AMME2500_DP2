@@ -6,12 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def init_state(
-    e_y0=0.8,
-    e_psi0=np.radians(3.0),
-    v_y0=0.0,
-    r0=0.0
-):
+def init_state():
     """
     Initial state for the 4-state dynamic bicycle error model.
 
@@ -24,13 +19,7 @@ def init_state(
         v_y   = lateral velocity at CG [m/s]
         r     = yaw rate [rad/s]
     """
-
-    return np.array([
-        [e_y0],
-        [e_psi0],
-        [v_y0],
-        [r0]
-    ], dtype=float)
+    return Vehicle_Params.initial_state
 
 def straight_line_path_test_case(dt=0.01, total_time=10.0):
     """
@@ -262,81 +251,83 @@ def curvature_feedforward_steering(kappa):
 
     return delta_ff
 
+def path_arclength(x_ref_arr, y_ref_arr):
+    path = np.column_stack((x_ref_arr, y_ref_arr))
+    ds = np.linalg.norm(np.diff(path, axis=0), axis=1)
+    return np.concatenate(([0.0], np.cumsum(ds)))
+
+
+def curvature_steady_state(A, B, E, kappa):
+    """
+    Compute the steady-state error-state vector and steering angle
+    for a path curvature kappa.
+
+    Solves:
+        A x_ss + B delta_ff + E kappa = 0
+
+    with:
+        e_y_ss = 0
+
+    Unknowns:
+        [e_y_ss, e_psi_ss, v_y_ss, r_ss, delta_ff]
+    """
+    B_col = B.reshape(4, 1)
+    E_vec = E.reshape(4)
+
+    M = np.block([
+        [A, B_col],
+        [np.array([[1.0, 0.0, 0.0, 0.0, 0.0]])]
+    ])
+
+    rhs = np.concatenate((-E_vec * kappa, [0.0]))
+
+    try:
+        sol = np.linalg.solve(M, rhs)
+    except np.linalg.LinAlgError:
+        sol = np.linalg.lstsq(M, rhs, rcond=None)[0]
+
+    x_ss = sol[:4]
+    delta_ff = sol[4]
+
+    return x_ss, delta_ff
+
+
 def simulate_path_tracking(
         A, B, E, C, K, L,
-        x0, 
+        x0,
         path_ref, psi_ref, kappa_ref,
-        x_hat0 = None, dt=0.01, total_time=10.0,
+        x_hat0=None,
+        dt=0.01,
+        total_time=10.0,
         use_feedforward=True,
-        use_friction_limit=True
+        use_friction_limit=False
     ):
-    """Simulate the observer-based closed-loop dynamics of the linear vehicle error model for a general reference path.
-    The reference path is defined by the curvature profile kappa_ref, which can be used to compute a feedforward steering input.
-    Parameters:
-        A, B, E:
-            State-space matrices.
-        C:
-            Output matrix.
-        K:
-            State-feedback gain matrix.
-        L:
-            Observer gain matrix.
-        x0:
-            Initial true state.
-        path_ref:
-            Reference path positions (x_ref, y_ref).
-        psi_ref:
-            Reference path headings.
-        kappa_ref:
-            Reference path curvatures.
-        x_hat0:
-            Initial observer estimate. If None, starts at zero.
-        dt:
-            Simulation timestep.
-        total_time:
-            Total simulation time.
-        use_feedforward:
-            Whether to include curvature feedforward in the control input.
-        use_friction_limit:
-            Whether to simulate nonlinear dynamics with friction saturation.
-    Returns:
-        time:
-            Time vector.
-        x_history:
-            True state history, shape (4, N).
-        x_hat_history:
-            Estimated state history, shape (4, N).
-        y_history:
-            Output history, shape (3, N).
-        u_history:
-            Steering input history, shape (N,).
-        estimation_error_history:
-            x - x_hat history, shape (4, N).
-    """
-    # Ensure consistent vector shapes
+
     B_vec = B.flatten()
     E_vec = E.flatten()
 
-    # Import friction coefficient for friction-limited dynamics
     mu = Vehicle_Params.mu
+    Vx = Vehicle_Params.V_x
 
-    # Unpack reference path
     x_ref_arr, y_ref_arr = path_ref
-    psi_ref = psi_ref
-    kappa_ref = kappa_ref
+    x_ref_arr = np.asarray(x_ref_arr, dtype=float)
+    y_ref_arr = np.asarray(y_ref_arr, dtype=float)
+    psi_ref = np.unwrap(np.asarray(psi_ref, dtype=float))
+    kappa_ref = np.asarray(kappa_ref, dtype=float)
+
+    s_ref = path_arclength(x_ref_arr, y_ref_arr)
+    s_total = s_ref[-1]
 
     x = np.asarray(x0, dtype=float).reshape(4).copy()
 
     if x_hat0 is None:
         x_hat = np.zeros(4)
-    else: 
+    else:
         x_hat = np.asarray(x_hat0, dtype=float).reshape(4).copy()
 
-    # Time vector
-    time = np.arange(0.0, total_time + dt, dt)
-    num_steps = len(time)
+    time_vec = np.arange(0.0, total_time + dt, dt)
+    num_steps = len(time_vec)
 
-    # History arrays
     x_history = np.zeros((4, num_steps))
     x_hat_history = np.zeros((4, num_steps))
     y_history = np.zeros((C.shape[0], num_steps))
@@ -349,7 +340,6 @@ def simulate_path_tracking(
     rear_util_history = np.zeros(num_steps)
     traction_lost_history = np.zeros(num_steps, dtype=bool)
 
-    # Global reconstruction histories for plotting
     x_global_history = np.zeros(num_steps)
     y_global_history = np.zeros(num_steps)
     psi_global_history = np.zeros(num_steps)
@@ -358,17 +348,40 @@ def simulate_path_tracking(
     y_ref_history = np.zeros(num_steps)
     psi_ref_history = np.zeros(num_steps)
     kappa_history = np.zeros(num_steps)
+    s_history = np.zeros(num_steps)
 
-    for i in range(num_steps):
-        # Protect against reference arrays shorter than the simulation
-        idx = min(i, len(x_ref_arr) - 1, len(y_ref_arr) - 1, len(psi_ref) - 1, len(kappa_ref) - 1)
+    for i, t in enumerate(time_vec):
 
-        x_ref_i = x_ref_arr[idx]
-        y_ref_i = y_ref_arr[idx]
-        psi_ref_i = psi_ref[idx]
-        kappa_i = kappa_ref[idx]
+        # Advance along the path by physical distance, not by array index.
+        s_i = min(Vx * t, s_total)
+        s_history[i] = s_i
 
-        # Reconstruct approximate global pose from current error state
+        x_ref_i = np.interp(s_i, s_ref, x_ref_arr)
+        y_ref_i = np.interp(s_i, s_ref, y_ref_arr)
+        psi_ref_i = np.interp(s_i, s_ref, psi_ref)
+        kappa_i = np.interp(s_i, s_ref, kappa_ref)
+
+        if use_feedforward:
+            x_ss, delta_ff = curvature_steady_state(A, B, E, kappa_i)
+        else:
+            x_ss = np.zeros(4)
+            delta_ff = 0.0
+
+        # Measurement model should match C directly.
+        y = C @ x
+        y_hat = C @ x_hat
+
+        # Feedback acts on deviation from the curved-path steady state.
+        x_tilde_hat = x_hat - x_ss
+        delta_fb = float((-K @ x_tilde_hat).item())
+
+        delta_unsat = delta_ff + delta_fb
+        delta = np.clip(
+            delta_unsat,
+            -Vehicle_Params.max_steering_angle,
+            Vehicle_Params.max_steering_angle
+        )
+
         pos = Controller.reconstruct_global_position(
             e_y=x[0],
             e_psi=x[1],
@@ -377,41 +390,6 @@ def simulate_path_tracking(
             psi_ref=psi_ref_i
         )
 
-        pos_ref = (x_ref_i, y_ref_i, psi_ref_i)
-
-        # Path-style measurement calculation
-        e_y_meas, e_psi_meas = Controller.vehicle_error(pos, pos_ref)
-
-        # Measured output: [e_y, e_psi, r]
-        y = np.array([
-            e_y_meas,
-            e_psi_meas,
-            x[3]
-        ])
-
-        # Estimated output
-        y_hat = C @ x_hat
-
-        # Feedback steering
-        delta_fb = float((-K @ x_hat).item())
-
-        # Feedforward steering for path curvature
-        if use_feedforward:
-            delta_ff = curvature_feedforward_steering(kappa_i)
-        else:
-            delta_ff = 0.0
-
-        # Total steering command
-        delta = delta_ff + delta_fb
-
-        # Optional actuator saturation
-        delta = np.clip(
-            delta,
-            -Vehicle_Params.max_steering_angle,
-            Vehicle_Params.max_steering_angle
-        )
-
-        # Store current values before integration
         x_history[:, i] = x
         x_hat_history[:, i] = x_hat
         y_history[:, i] = y
@@ -429,7 +407,6 @@ def simulate_path_tracking(
         psi_ref_history[i] = psi_ref_i
         kappa_history[i] = kappa_i
 
-        # Plant dynamics
         if use_friction_limit:
             x_dot, util_f, util_r = nonlinear_friction_limited_dynamics(
                 x, delta, mu, kappa_i
@@ -443,8 +420,6 @@ def simulate_path_tracking(
         rear_util_history[i] = util_r
         traction_lost_history[i] = (util_f >= 1.0) or (util_r >= 1.0)
 
-        # Observer dynamics
-        # Important: observer also receives known path curvature input E*kappa
         x_hat_dot = (
             A @ x_hat
             + B_vec * delta
@@ -452,12 +427,11 @@ def simulate_path_tracking(
             + L @ (y - y_hat)
         )
 
-        # Euler integration
         x = x + x_dot * dt
         x_hat = x_hat + x_hat_dot * dt
 
-        results = {
-        "time": time,
+    results = {
+        "time": time_vec,
         "x_history": x_history,
         "x_hat_history": x_hat_history,
         "y_history": y_history,
@@ -475,25 +449,81 @@ def simulate_path_tracking(
         "y_ref_history": y_ref_history,
         "psi_ref_history": psi_ref_history,
         "kappa_history": kappa_history,
+        "s_history": s_history,
+        "x_ref_full": x_ref_arr,
+        "y_ref_full": y_ref_arr,
+        "psi_ref_full": psi_ref,
+        "kappa_ref_full": kappa_ref,
+        "s_ref": s_ref,
     }
-        
+
     return results
 
-def plot_path_tracking(results):
-    time = results["time"]
-    x_ref_history = results["x_ref_history"]
-    y_ref_history = results["y_ref_history"]
-    x_global_history = results["x_global_history"]
-    y_global_history = results["y_global_history"]
 
-    plt.plot(x_global_history, y_global_history, label='Vehicle Trajectory')
-    plt.plot(x_ref_history, y_ref_history, "k--", label="Reference path")
-    plt.title('Vehicle Trajectory in XY Plane')
-    plt.xlabel('X Position (m)')
-    plt.ylabel('Y Position (m)')
-    plt.grid()
+def plot_path_tracking(results):
+    plt.figure(figsize=(10, 4.5))
+
+    plt.plot(
+        results["x_ref_full"],
+        results["y_ref_full"],
+        "k--",
+        linewidth=1.5,
+        label="Full reference path"
+    )
+
+    plt.plot(
+        results["x_ref_history"],
+        results["y_ref_history"],
+        linestyle=":",
+        linewidth=1.2,
+        label="Time-marched reference point"
+    )
+
+    plt.plot(
+        results["x_global_history"],
+        results["y_global_history"],
+        linewidth=1.8,
+        label="Vehicle trajectory"
+    )
+
+    plt.title("Vehicle Trajectory in XY Plane")
+    plt.xlabel("X Position (m)")
+    plt.ylabel("Y Position (m)")
+    plt.axis("equal")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_path_tracking_diagnostics(results):
+    time = results["time"]
+    x_history = results["x_history"]
+
+    plt.figure(figsize=(10, 7))
+
+    plt.subplot(3, 1, 1)
+    plt.plot(time, x_history[0, :], label="e_y")
+    plt.ylabel("Lateral error [m]")
+    plt.grid(True)
     plt.legend()
 
+    plt.subplot(3, 1, 2)
+    plt.plot(time, np.degrees(x_history[1, :]), label="e_psi")
+    plt.ylabel("Heading error [deg]")
+    plt.grid(True)
+    plt.legend()
+
+    plt.subplot(3, 1, 3)
+    plt.plot(time, np.degrees(results["u_history"]), label="delta")
+    plt.plot(time, np.degrees(results["delta_ff_history"]), "--", label="delta_ff")
+    plt.plot(time, np.degrees(results["delta_fb_history"]), ":", label="delta_fb")
+    plt.ylabel("Steering [deg]")
+    plt.xlabel("Time [s]")
+    plt.grid(True)
+    plt.legend()
+
+    plt.tight_layout()
     plt.show()
 
 def plot_simulation_position_straight_line(time, x_history, y_history, u_history):
@@ -593,6 +623,12 @@ def main():
     )
 
     plot_path_tracking(results)
+    plot_path_tracking_diagnostics(results)
+    plot_tire_utilization(
+    results["time"],
+    results["front_util_history"],
+    results["rear_util_history"]
+    )
 
 if __name__ == "__main__":
     main()
