@@ -4,14 +4,17 @@
 import os
 import sys
 import numpy as np
+#from .. import path_generation
 
 try:
     import main_dynamic
+    import path_generation
 except Exception:
     grandparent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '.', '.'))
     if grandparent_dir not in sys.path:
         sys.path.insert(0, grandparent_dir)
     import main_dynamic  # type: ignore
+    import path_generation  # type: ignore
 
 def load_path_from_main():
     if not hasattr(main_dynamic, 'final_path_details'):
@@ -32,10 +35,22 @@ def load_path_from_main():
 
     return u, path, curvature, radius, heading, bestsol
 
-
+'''
 def init_path():
     u, path, curvature, radius, heading, bestsol = load_path_from_main()
     print('Final path details obtained from main_dynamic.py \n')
+    length, time = main_dynamic.final_path_length_and_time(bestsol)
+    return u, path, curvature, radius, heading, length, time
+'''
+
+def init_path():
+    results = path_generation.load_path_details("generated_paths/path_007.npz")
+    u = results["u"]
+    path = results["path"]
+    curvature = results["curvature"]
+    radius = results["radius"]
+    heading = results["heading"]
+    bestsol = results["bestsol"]
     length, time = main_dynamic.final_path_length_and_time(bestsol)
     return u, path, curvature, radius, heading, length, time
 

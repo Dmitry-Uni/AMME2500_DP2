@@ -33,7 +33,7 @@ max_steering_angle = np.radians(36)  # radians, typical for passenger
 
     #Vehicle speeds
 V_i = np.array([11.0, 17.0, 22.0, 31.0])  # m/s
-V_x = V_i[1]  # m/s, initial speed for control design
+V_x = V_i[3]  # m/s, initial speed for control design
 
     # Initial state of the vehicle (lateral error, heading error, lateral velocity, yaw rate)
 initial_state = np.array([[0.0], [0.0], [0.0], [0.0]])  # [e_y, e_psi, v_y, r]

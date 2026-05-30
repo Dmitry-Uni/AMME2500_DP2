@@ -27,7 +27,7 @@ def run_main():
     Runs the path generation routine from main_dynamic.py.
 
     Assumes final_path_details returns:
-        u, path, curvature, radius, heading, bestsol
+        u, path, curvature, radius, heading, Nbestsol
     """
 
     u, path, curvature, radius, heading, bestsol = main_dynamic.final_path_details("bestsol")

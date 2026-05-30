@@ -17,7 +17,7 @@ env_params = {
     'robot_radius': 1.94,  # Approximate radius of a typical car (for collision checking)
     'vehicle_speed': Vehicle_Params.V_x,
     'start': Vehicle_Params.initial_position,
-    'goal': [95, 2.6],
+    'goal': [95, 5.5],
 }
 env = pp.Environment(**env_params)
 
@@ -26,21 +26,12 @@ env = pp.Environment(**env_params)
 obstacles = [
     {
         'shape': 'rectangle',
-        'center': [40, 2.5],
+        'center': [65, 2.5],
         'width': 4.9,
         'height': 1.94,
         'angle': 0,
         'velocity': [0, 0],
         'name': 'parked_vehicle',
-    },
-    {
-        'shape': 'rectangle',
-        'center': [50, 2.5],
-        'width': 4.9,
-        'height': 1.94,
-        'angle': 0,
-        'velocity': [0, 0],
-        'name': 'moving_vehicle',
     },
 ]
 
