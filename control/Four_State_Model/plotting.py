@@ -646,3 +646,210 @@ def observer_validation(results, save_path=None):
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
     plt.show()
+
+
+def plot_friction_step_disturbance_comparison(
+        results_no_sat,
+        results_sat,
+        ey_limit=0.30,
+        steering_limit_deg=36,
+        save_path=None
+    ):
+    """
+    Compare the same friction-step disturbance with tyre saturation disabled
+    and enabled.
+
+    results_no_sat:
+        Simplified/linear-style case where friction saturation is disabled.
+
+    results_sat:
+        Original/nonlinear-style case where tyre saturation is enabled.
+
+    The plot is designed for the Numerical Validation section:
+        1. path tracking trajectory,
+        2. lateral error,
+        3. steering input,
+        4. tyre utilisation and friction step.
+    """
+
+    def as_1d(arr):
+        return np.squeeze(np.asarray(arr))
+
+    time_no = as_1d(results_no_sat["time"])
+    time_sat = as_1d(results_sat["time"])
+
+    ey_no = as_1d(results_no_sat["x_history"][0, :])
+    ey_sat = as_1d(results_sat["x_history"][0, :])
+
+    delta_no_deg = np.degrees(as_1d(results_no_sat["u_history"]))
+    delta_sat_deg = np.degrees(as_1d(results_sat["u_history"]))
+
+    front_no = as_1d(results_no_sat["front_util_history"])
+    rear_no = as_1d(results_no_sat["rear_util_history"])
+    front_sat = as_1d(results_sat["front_util_history"])
+    rear_sat = as_1d(results_sat["rear_util_history"])
+
+    mu_sat = as_1d(results_sat["mu_history"])
+
+    fig, axes = plt.subplots(4, 1, figsize=(10, 11), constrained_layout=True)
+
+    # ------------------------------------------------------------
+    # 1. XY path tracking
+    # ------------------------------------------------------------
+    ax = axes[0]
+
+    ax.plot(
+        results_sat["x_ref_full"],
+        results_sat["y_ref_full"],
+        "k--",
+        linewidth=1.4,
+        label="Reference path"
+    )
+
+    ax.plot(
+        results_no_sat["x_global_history"],
+        results_no_sat["y_global_history"],
+        linewidth=1.7,
+        label="Friction step, saturation disabled"
+    )
+
+    ax.plot(
+        results_sat["x_global_history"],
+        results_sat["y_global_history"],
+        linewidth=1.7,
+        label="Friction step, saturation enabled"
+    )
+
+    ax.set_title("Friction Disturbance: Vehicle Trajectory")
+    ax.set_xlabel("X position [m]")
+    ax.set_ylabel("Y position [m]")
+    ax.axis("equal")
+    ax.grid(True)
+    ax.legend(loc="best")
+
+    # ------------------------------------------------------------
+    # 2. Lateral tracking error
+    # ------------------------------------------------------------
+    ax = axes[1]
+
+    ax.plot(
+        time_no,
+        ey_no,
+        linewidth=1.7,
+        label=r"Saturation disabled: $e_y$"
+    )
+
+    ax.plot(
+        time_sat,
+        ey_sat,
+        linewidth=1.7,
+        label=r"Saturation enabled: $e_y$"
+    )
+
+    ax.axhline(ey_limit, color="black", linestyle="--", linewidth=1.0)
+    ax.axhline(-ey_limit, color="black", linestyle="--", linewidth=1.0)
+
+    ax.set_title(r"Lateral Tracking Error Under Reduced Friction")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel(r"$e_y$ [m]")
+    ax.grid(True)
+    ax.legend(loc="best")
+
+    # ------------------------------------------------------------
+    # 3. Steering input
+    # ------------------------------------------------------------
+    ax = axes[2]
+
+    ax.plot(
+        time_no,
+        delta_no_deg,
+        linewidth=1.7,
+        label="Saturation disabled"
+    )
+
+    ax.plot(
+        time_sat,
+        delta_sat_deg,
+        linewidth=1.7,
+        label="Saturation enabled"
+    )
+
+    ax.axhline(steering_limit_deg, color="black", linestyle="--", linewidth=1.0)
+    ax.axhline(-steering_limit_deg, color="black", linestyle="--", linewidth=1.0)
+
+    ax.set_title("Controller Steering Input")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel(r"$\delta$ [deg]")
+    ax.grid(True)
+    ax.legend(loc="best")
+
+    # ------------------------------------------------------------
+    # 4. Tyre utilisation and friction coefficient
+    # ------------------------------------------------------------
+    ax1 = axes[3]
+    ax2 = ax1.twinx()
+
+    ax1.plot(
+        time_no,
+        front_no,
+        linewidth=1.5,
+        linestyle="-",
+        label="No saturation: front utilisation"
+    )
+
+    ax1.plot(
+        time_no,
+        rear_no,
+        linewidth=1.5,
+        linestyle="--",
+        label="No saturation: rear utilisation"
+    )
+
+    ax1.plot(
+        time_sat,
+        front_sat,
+        linewidth=1.7,
+        linestyle="-",
+        label="Saturation enabled: front utilisation"
+    )
+
+    ax1.plot(
+        time_sat,
+        rear_sat,
+        linewidth=1.7,
+        linestyle="--",
+        label="Saturation enabled: rear utilisation"
+    )
+
+    ax1.axhline(
+        1.0,
+        color="black",
+        linestyle=":",
+        linewidth=1.2,
+        label="Tyre saturation threshold"
+    )
+
+    ax2.plot(
+        time_sat,
+        mu_sat,
+        color="black",
+        linewidth=1.4,
+        alpha=0.6,
+        label=r"$\mu$"
+    )
+
+    ax1.set_title("Tyre Utilisation and Friction Step")
+    ax1.set_xlabel("Time [s]")
+    ax1.set_ylabel("Tyre force utilisation [-]")
+    ax2.set_ylabel(r"Coefficient of friction $\mu$ [-]")
+
+    ax1.grid(True)
+
+    lines_1, labels_1 = ax1.get_legend_handles_labels()
+    lines_2, labels_2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc="best")
+
+    if save_path is not None:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+
+    plt.show()

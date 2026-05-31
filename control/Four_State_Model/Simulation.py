@@ -361,17 +361,78 @@ def choose_valid_tracking_distance(
 
     return s_stop, kappa_limit
 
+def friction_step_profile(
+        t,
+        s,
+        mu_high=0.90,
+        mu_low=0.60,
+        step_time=None,
+        step_distance=None,
+        transition_time=0.20
+    ):
+    """
+    Smooth coefficient-of-friction disturbance.
+
+    The vehicle initially travels on a high-friction road surface with
+    coefficient mu_high. At either a specified time or arclength, the road
+    friction decreases smoothly to mu_low over transition_time.
+
+    Use either step_time or step_distance. If both are supplied,
+    step_distance takes priority.
+
+    Parameters
+    ----------
+    t : float
+        Current simulation time [s].
+    s : float
+        Current path arclength [m].
+    mu_high : float
+        Initial coefficient of friction.
+    mu_low : float
+        Reduced coefficient of friction after disturbance.
+    step_time : float or None
+        Time at which the friction transition begins [s].
+    step_distance : float or None
+        Arclength at which the friction transition begins [m].
+    transition_time : float
+        Smooth transition duration [s]. Only used for time-based step.
+
+    Returns
+    -------
+    mu : float
+        Current coefficient of friction.
+    """
+
+    if step_distance is not None:
+        # Distance-based step. This is easiest to justify physically:
+        # the car reaches a puddle/low-friction patch at a fixed location.
+        return mu_low if s >= step_distance else mu_high
+
+    if step_time is None:
+        raise ValueError("Either step_time or step_distance must be provided.")
+
+    if transition_time <= 0:
+        return mu_low if t >= step_time else mu_high
+
+    # Smooth time-based transition from mu_high to mu_low.
+    alpha = np.clip((t - step_time) / transition_time, 0.0, 1.0)
+    return mu_high + alpha * (mu_low - mu_high)
+
 def simulate_path_tracking(
         A, B, E, C, K, L,
         x0,
-        path_ref, psi_ref, kappa_ref,
+        path_ref,
+        psi_ref,
+        kappa_ref,
         x_hat0=None,
         dt=0.01,
         total_time=10.0,
         use_feedforward=True,
         use_friction_limit=False,
         endpoint_buffer=2.0,
-        utilisation_margin=0.90
+        utilisation_margin=0.90,
+        mu_profile=None,
+        disturbance_label="none"
     ):
 
     B_vec = B.flatten()
@@ -432,6 +493,8 @@ def simulate_path_tracking(
     delta_ff_history = np.zeros(num_steps)
     delta_fb_history = np.zeros(num_steps)
     estimation_error_history = np.zeros((4, num_steps))
+    mu_history = np.zeros(num_steps)
+    mu_g_history = np.zeros(num_steps)
 
     a_max_history = np.zeros(num_steps)
 
@@ -455,6 +518,14 @@ def simulate_path_tracking(
         s_i = Vx * t
         s_i = min(s_i, s_stop)
         s_history[i] = s_i
+
+        if mu_profile is None:
+            mu_i = mu
+        else:
+            mu_i = float(mu_profile(t, s_i))
+
+        mu_history[i] = mu_i
+        mu_g_history[i] = mu_i * g
 
         x_ref_i = np.interp(s_i, s_ref, x_ref_arr)
         y_ref_i = np.interp(s_i, s_ref, y_ref_arr)
@@ -509,7 +580,7 @@ def simulate_path_tracking(
 
         if use_friction_limit:
             x_dot, util_f, util_r = nonlinear_friction_limited_dynamics(
-                x, delta, mu, kappa_i
+                x, delta, mu_i, kappa_i
             )
         else:
             x_dot = A @ x + B_vec * delta + E_vec * kappa_i
@@ -561,6 +632,9 @@ def simulate_path_tracking(
         "endpoint_buffer": endpoint_buffer,
         "utilisation_margin": utilisation_margin,
         "a_max_history": a_max_history,
+        "mu_history": mu_history,
+        "mu_g_history": mu_g_history,
+        "disturbance_label": disturbance_label,
     }
 
     return results
@@ -730,7 +804,79 @@ def main():
     print(f"Simulated valid path length: {results['s_stop']:.2f} m")
     print(f"Curvature feasibility limit: {results['kappa_feasibility_limit']:.5f} 1/m")
 
-    plotting.observer_validation(results)
+        # ============================================================
+    # Disturbance case: sudden reduction in road friction
+    # ============================================================
+    # Scenario:
+    # The vehicle encounters a low-friction road patch, such as a
+    # puddle, causing mu to decrease from 0.90 to 0.60 at a fixed
+    # point along the reference path.
+    #
+    # Two simulations are compared:
+    #   1. Saturation disabled: simplified case where the controller
+    #      effectively ignores the reduced tyre-road force limit.
+    #   2. Saturation enabled: original/nonlinear case where tyre
+    #      force saturation limits the available lateral force.
+    # ============================================================
+
+    friction_disturbance = lambda t, s: friction_step_profile(
+        t=t,
+        s=s,
+        mu_high=0.90,
+        mu_low=0.60,
+        step_distance=30.0,
+        transition_time=0.20
+    )
+
+    results_mu_step_no_sat = simulate_path_tracking(
+        A, B, E, C, K, L,
+        x0,
+        path_ref=(path[:, 0], path[:, 1]),
+        psi_ref=heading,
+        kappa_ref=curvature,
+        x_hat0=x_hat0,
+        dt=0.01,
+        total_time=time,
+        use_feedforward=True,
+        use_friction_limit=False,
+        endpoint_buffer=8.0,
+        utilisation_margin=0.90,
+        mu_profile=friction_disturbance,
+        disturbance_label="mu step 0.90 to 0.60, saturation disabled"
+    )
+
+    results_mu_step_sat = simulate_path_tracking(
+        A, B, E, C, K, L,
+        x0,
+        path_ref=(path[:, 0], path[:, 1]),
+        psi_ref=heading,
+        kappa_ref=curvature,
+        x_hat0=x_hat0,
+        dt=0.01,
+        total_time=time,
+        use_feedforward=True,
+        use_friction_limit=True,
+        endpoint_buffer=8.0,
+        utilisation_margin=0.90,
+        mu_profile=friction_disturbance,
+        disturbance_label="mu step 0.90 to 0.60, saturation enabled"
+    )
+
+    print("\nFriction disturbance case: saturation disabled")
+    plotting.print_performance(results_mu_step_no_sat)
+
+    print("\nFriction disturbance case: saturation enabled")
+    plotting.print_performance(results_mu_step_sat)
+
+    plotting.plot_friction_step_disturbance_comparison(
+        results_no_sat=results_mu_step_no_sat,
+        results_sat=results_mu_step_sat,
+        ey_limit=0.30,
+        steering_limit_deg=36,
+        save_path="fig_friction_step_disturbance_comparison.pdf"
+    )
+
+    #plotting.observer_validation(results)
     
     """
     print("\nnominal perf (mellow path no sat) \n")
