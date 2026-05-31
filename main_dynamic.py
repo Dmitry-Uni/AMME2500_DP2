@@ -17,7 +17,7 @@ env_params = {
     'robot_radius': 1.94,  # Approximate radius of a typical car (for collision checking)
     'vehicle_speed': Vehicle_Params.V_x,
     'start': Vehicle_Params.initial_position,
-    'goal': [95, 5.5],
+    'goal': [105, 5.5],
 }
 env = pp.Environment(**env_params)
 

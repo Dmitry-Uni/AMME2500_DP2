@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 OUTPUT_DIR = Path("generated_paths")
 N_CANDIDATES = 5          # Number of paths to generate in one run
 SAVE_ALL = False          # Set True to save every generated path automatically
-MAX_ITERATIONS = 200        # Max iterations for PSO
+MAX_ITERATIONS = 50        # Max iterations for PSO
 
 
 # -----------------------------

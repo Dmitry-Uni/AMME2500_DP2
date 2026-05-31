@@ -1,7 +1,7 @@
 import control.Vehicle_Params as Vehicle_Params
 import numpy as np
 
-def build_state_matrices():
+def build_state_matrices(*args):
 
     Vx = Vehicle_Params.V_x
     m = Vehicle_Params.mass
@@ -10,6 +10,13 @@ def build_state_matrices():
     lf = Vehicle_Params.lf
     lr = Vehicle_Params.lr
     Iz = Vehicle_Params.yaw_inertia
+
+    if "0.8" in args:
+        Cf = Vehicle_Params.Cf * 0.8
+        Cr = Vehicle_Params.Cr * 0.8
+    elif "1.2" in args:
+        Cf = Vehicle_Params.Cf * 1.2
+        Cr = Vehicle_Params.Cr * 1.2
 
     A = np.array([
         [0.0, Vx, 1.0, 0.0],

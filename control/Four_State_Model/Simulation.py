@@ -4,6 +4,7 @@ import control.Vehicle_Params as Vehicle_Params
 from . import Controller
 import numpy as np
 import matplotlib.pyplot as plt
+from . import plotting
 
 
 def init_state():
@@ -291,6 +292,74 @@ def curvature_steady_state(A, B, E, kappa):
 
     return x_ss, delta_ff
 
+def make_time_vector(total_time, dt):
+    """
+    Build a time vector that does not overshoot total_time by an extra dt.
+    """
+    if total_time <= 0:
+        return np.array([0.0])
+
+    n_steps = int(np.floor(total_time / dt)) + 1
+    time_vec = np.arange(n_steps) * dt
+
+    # Append exact final time only if it is not already represented.
+    if time_vec[-1] < total_time - 1e-12:
+        time_vec = np.append(time_vec, total_time)
+
+    return time_vec
+
+
+def choose_valid_tracking_distance(
+        s_ref,
+        kappa_ref,
+        Vx,
+        mu,
+        g,
+        endpoint_buffer=2.0,
+        utilisation_margin=0.90
+    ):
+    """
+    Select the final arclength to use for simulation.
+
+    The simulation is stopped before:
+        1. the final endpoint, where spline/finite-difference curvature
+           can be unreliable; and
+        2. any terminal region whose curvature requires more lateral
+           acceleration than the tyre friction margin allows.
+
+    Curvature feasibility is approximated using:
+        ay = Vx^2 * kappa <= utilisation_margin * mu * g
+    """
+
+    s_ref = np.asarray(s_ref, dtype=float)
+    kappa_ref = np.asarray(kappa_ref, dtype=float)
+
+    s_total = s_ref[-1]
+
+    # Feasible curvature limit based on lateral acceleration demand.
+    kappa_limit = utilisation_margin * mu * g / (Vx ** 2)
+
+    # Default: stop before the endpoint.
+    s_stop = max(0.0, s_total - endpoint_buffer)
+
+    # If the terminal part of the path exceeds the curvature limit,
+    # stop before the start of that terminal infeasible region.
+    terminal_bad = np.abs(kappa_ref) > kappa_limit
+
+    if terminal_bad[-1]:
+        # Walk backwards until curvature becomes feasible again.
+        first_bad_idx = len(kappa_ref) - 1
+
+        while first_bad_idx > 0 and terminal_bad[first_bad_idx - 1]:
+            first_bad_idx -= 1
+
+        # Stop at the last feasible point before the terminal bad region.
+        stop_idx = max(0, first_bad_idx - 1)
+        s_stop = min(s_stop, s_ref[stop_idx])
+
+    s_stop = max(0.0, s_stop)
+
+    return s_stop, kappa_limit
 
 def simulate_path_tracking(
         A, B, E, C, K, L,
@@ -300,13 +369,16 @@ def simulate_path_tracking(
         dt=0.01,
         total_time=10.0,
         use_feedforward=True,
-        use_friction_limit=False
+        use_friction_limit=False,
+        endpoint_buffer=2.0,
+        utilisation_margin=0.90
     ):
 
     B_vec = B.flatten()
     E_vec = E.flatten()
 
     mu = Vehicle_Params.mu
+    g = Vehicle_Params.g
     Vx = Vehicle_Params.V_x
 
     x_ref_arr, y_ref_arr = path_ref
@@ -315,8 +387,36 @@ def simulate_path_tracking(
     psi_ref = np.unwrap(np.asarray(psi_ref, dtype=float))
     kappa_ref = np.asarray(kappa_ref, dtype=float)
 
+    if not (
+        len(x_ref_arr) == len(y_ref_arr) ==
+        len(psi_ref) == len(kappa_ref)
+    ):
+        raise ValueError(
+            "Reference arrays must have matching lengths: "
+            f"x={len(x_ref_arr)}, y={len(y_ref_arr)}, "
+            f"psi={len(psi_ref)}, kappa={len(kappa_ref)}"
+        )
+
     s_ref = path_arclength(x_ref_arr, y_ref_arr)
     s_total = s_ref[-1]
+
+    # Stop before terminal endpoint saturation or terminal infeasible curvature.
+    s_stop, kappa_limit = choose_valid_tracking_distance(
+        s_ref=s_ref,
+        kappa_ref=kappa_ref,
+        Vx=Vx,
+        mu=mu,
+        g=g,
+        endpoint_buffer=endpoint_buffer,
+        utilisation_margin=utilisation_margin
+    )
+
+    # Do not run beyond the valid reference distance.
+    valid_total_time = s_stop / Vx
+    total_time = min(total_time, valid_total_time)
+
+    time_vec = make_time_vector(total_time, dt)
+    num_steps = len(time_vec)
 
     x = np.asarray(x0, dtype=float).reshape(4).copy()
 
@@ -325,9 +425,6 @@ def simulate_path_tracking(
     else:
         x_hat = np.asarray(x_hat0, dtype=float).reshape(4).copy()
 
-    time_vec = np.arange(0.0, total_time + dt, dt)
-    num_steps = len(time_vec)
-
     x_history = np.zeros((4, num_steps))
     x_hat_history = np.zeros((4, num_steps))
     y_history = np.zeros((C.shape[0], num_steps))
@@ -335,6 +432,8 @@ def simulate_path_tracking(
     delta_ff_history = np.zeros(num_steps)
     delta_fb_history = np.zeros(num_steps)
     estimation_error_history = np.zeros((4, num_steps))
+
+    a_max_history = np.zeros(num_steps)
 
     front_util_history = np.zeros(num_steps)
     rear_util_history = np.zeros(num_steps)
@@ -352,8 +451,9 @@ def simulate_path_tracking(
 
     for i, t in enumerate(time_vec):
 
-        # Advance along the path by physical distance, not by array index.
-        s_i = min(Vx * t, s_total)
+        # Advance along the valid portion of the path only.
+        s_i = Vx * t
+        s_i = min(s_i, s_stop)
         s_history[i] = s_i
 
         x_ref_i = np.interp(s_i, s_ref, x_ref_arr)
@@ -367,11 +467,11 @@ def simulate_path_tracking(
             x_ss = np.zeros(4)
             delta_ff = 0.0
 
-        # Measurement model should match C directly.
+        # Measurement model.
         y = C @ x
         y_hat = C @ x_hat
 
-        # Feedback acts on deviation from the curved-path steady state.
+        # Feedback on deviation from curved-path steady state.
         x_tilde_hat = x_hat - x_ss
         delta_fb = float((-K @ x_tilde_hat).item())
 
@@ -415,7 +515,7 @@ def simulate_path_tracking(
             x_dot = A @ x + B_vec * delta + E_vec * kappa_i
             util_f = 0.0
             util_r = 0.0
-
+        a_max_history[i] = np.linalg.norm(x_dot[2:])  # Lateral acceleration magnitude
         front_util_history[i] = util_f
         rear_util_history[i] = util_r
         traction_lost_history[i] = (util_f >= 1.0) or (util_r >= 1.0)
@@ -455,125 +555,16 @@ def simulate_path_tracking(
         "psi_ref_full": psi_ref,
         "kappa_ref_full": kappa_ref,
         "s_ref": s_ref,
+        "s_total": s_total,
+        "s_stop": s_stop,
+        "kappa_feasibility_limit": kappa_limit,
+        "endpoint_buffer": endpoint_buffer,
+        "utilisation_margin": utilisation_margin,
+        "a_max_history": a_max_history,
     }
 
     return results
 
-
-def plot_path_tracking(results):
-    plt.figure(figsize=(10, 4.5))
-
-    plt.plot(
-        results["x_ref_full"],
-        results["y_ref_full"],
-        "k--",
-        linewidth=1.5,
-        label="Full reference path"
-    )
-
-    plt.plot(
-        results["x_ref_history"],
-        results["y_ref_history"],
-        linestyle=":",
-        linewidth=1.2,
-        label="Time-marched reference point"
-    )
-
-    plt.plot(
-        results["x_global_history"],
-        results["y_global_history"],
-        linewidth=1.8,
-        label="Vehicle trajectory"
-    )
-
-    plt.title("Vehicle Trajectory in XY Plane")
-    plt.xlabel("X Position (m)")
-    plt.ylabel("Y Position (m)")
-    plt.axis("equal")
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-
-
-def plot_path_tracking_diagnostics(results):
-    time = results["time"]
-    x_history = results["x_history"]
-
-    plt.figure(figsize=(10, 7))
-
-    plt.subplot(3, 1, 1)
-    plt.plot(time, x_history[0, :], label="e_y")
-    plt.ylabel("Lateral error [m]")
-    plt.grid(True)
-    plt.legend()
-
-    plt.subplot(3, 1, 2)
-    plt.plot(time, np.degrees(x_history[1, :]), label="e_psi")
-    plt.ylabel("Heading error [deg]")
-    plt.grid(True)
-    plt.legend()
-
-    plt.subplot(3, 1, 3)
-    plt.plot(time, np.degrees(results["u_history"]), label="delta")
-    plt.plot(time, np.degrees(results["delta_ff_history"]), "--", label="delta_ff")
-    plt.plot(time, np.degrees(results["delta_fb_history"]), ":", label="delta_fb")
-    plt.ylabel("Steering [deg]")
-    plt.xlabel("Time [s]")
-    plt.grid(True)
-    plt.legend()
-
-    plt.tight_layout()
-    plt.show()
-
-def plot_simulation_position_straight_line(time, x_history, y_history, u_history):
-    plt.figure(figsize=(12, 8))
-
-    # Plot lateral error and heading error
-    plt.subplot(3, 1, 1)
-    plt.plot(time, x_history[0, :], label='Lateral Error $e_y$ (m)')
-    plt.plot(time, np.degrees(x_history[1, :]), label='Heading Error $e_\\psi$ (deg)')
-    plt.title('Vehicle Lateral and Heading Errors Over Time')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Error')
-    plt.grid()
-    plt.legend()
-
-    # Plot control input
-    plt.subplot(3, 1, 2)
-    plt.plot(time, np.degrees(u_history), label='Steering Input $\\delta$ (deg)')
-    plt.title('Steering Input Over Time')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Steering Angle (deg)')
-    plt.grid()
-    plt.legend()
-
-    # Plot trajectory in XY plane
-    plt.subplot(3, 1, 3)
-    x_position = time * Vehicle_Params.V_x  # Assuming constant forward speed
-    y_position = x_history[0, :]  # Lateral position is the lateral error
-    plt.plot(x_position, y_position, label='Vehicle Trajectory')
-    plt.plot(x_position, np.zeros_like(x_position), "k--", label="Reference path")
-    plt.title('Vehicle Trajectory in XY Plane')
-    plt.xlabel('X Position (m)')
-    plt.ylabel('Y Position (m)')
-    plt.grid()
-    plt.legend()
-
-    plt.tight_layout()
-    plt.show()
-
-def plot_tire_utilization(time, front_util_history, rear_util_history):
-    plt.figure(figsize=(10, 4))
-    plt.plot(time, front_util_history, label="Front tyre utilisation")
-    plt.plot(time, rear_util_history, label="Rear tyre utilisation")
-    plt.axhline(1.0, color="k", linestyle="--", label="Traction limit")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Force utilisation")
-    plt.title("Tyre Force Utilisation")
-    plt.grid()
-    plt.legend()
-    plt.show()
 
 def main():
 
@@ -590,45 +581,212 @@ def main():
     print("\nInput matrix B:")
     print(B)
 
-    print("\nDisturbance matrix E:")
+    print("\nOutput-Input matrix D:")
+    print(D)
+
+    print("\n Feedforward matrix E:")
     print(E)
+
+    print("\nOutput matrix C:")
+    print(C)
+
+    print("\nState-feedback gain K:")
+    print(K)
+
+    print("\nObserver gain L:")
+    print(L)
+
+    print("\nController poles:")
+    print(Controller.controller_poles())
+
+    print("\nObserver poles:")
+    print(Controller.observer_poles())
+
+    print("\nClosed-loop (Controller) eigenvalues:")
+    print(Controller.controller_eigenvalues(A, B, K))
+
+    print("\nObserver eigenvalues:")
+    print(Controller.observer_eigenvalues(A, C, L))
+
 
     print("\nModel checks:")
     Model.check_controllability(A, B)
     Model.check_open_loop_modes(A)
     Model.check_observability(A, C)
 
-    x0 = init_state()
-    '''
-    time, x_history, x_hat_history, y_history, u_history, estimation_error_history, front_util_history, rear_util_history, traction_lost_history = simulate_vehicle_dynamics(
-        A, B, E, C, K, L, x0, x_hat0=None, dt=0.01, total_time=10.0)
-    '''
+    A2, B2, E2 = Model.build_state_matrices("0.8")
+    A3, B3, E3 = Model.build_state_matrices("1.2")
 
-    #plot_simulation_position_straight_line(time, x_history, y_history, u_history)
-    #plot_tire_utilization(time, front_util_history, rear_util_history)
+    u, path, curvature, radius, heading, length, time = Reference_States.init_path() #Mellow path
+    u_m, path_m, curvature_m, radius_m, heading_m, length_m, time_m = Reference_States.init_path_mellow() #This is actually the aggressive path
 
-    u, path, curvature, radius, heading, length, time = Reference_States.init_path()
+    # Start the vehicle and observer at the steady-state condition
+    # corresponding to the initial path curvature. This removes the
+    # artificial startup transient caused by starting x_hat at zero.
+    kappa0 = curvature[0]
+    x_ss0, delta_ff0 = curvature_steady_state(A, B, E, kappa0)
+
+    x0 = x_ss0.copy()
+    #x_hat0 = x_ss0.copy()
+    #x_hat0 = np.zeros_like(x0)
+    x_hat0 = x0 + np.array([0.2, np.radians(5), 0.0, 0.0])
+
+    print(f"Initial curvature: {kappa0:.6f} 1/m")
+    print(f"Initial steady-state x0: {x0}")
+    print(f"Initial feedforward steering: {np.degrees(delta_ff0):.3f} deg")
 
     print(f"Simulating path tracking for reference path of length {length:.2f} m and estimated traversal time {time:.2f} s...")
 
     results = simulate_path_tracking(
         A, B, E, C, K, L,
-        x0, 
+        x0,
         path_ref=(path[:, 0], path[:, 1]),
         psi_ref=heading,
         kappa_ref=curvature,
-        x_hat0=None, dt=0.01, total_time=time,
+        x_hat0=x_hat0,
+        dt=0.01,
+        total_time=time,
         use_feedforward=True,
-        use_friction_limit=True
+        use_friction_limit=True,
+        endpoint_buffer=8.0,
+        utilisation_margin=0.90
+    )
+    results2 = simulate_path_tracking(
+        A2, B2, E2, C, K, L,
+        x0,
+        path_ref=(path[:, 0], path[:, 1]),
+        psi_ref=heading,
+        kappa_ref=curvature,
+        x_hat0=x_hat0,
+        dt=0.01,
+        total_time=time,
+        use_feedforward=True,
+        use_friction_limit=True,
+        endpoint_buffer=8.0,
+        utilisation_margin=0.90
+    )
+    results3 = simulate_path_tracking(
+        A3, B3, E3, C, K, L,
+        x0,
+        path_ref=(path[:, 0], path[:, 1]),
+        psi_ref=heading,
+        kappa_ref=curvature,
+        x_hat0=x_hat0,
+        dt=0.01,
+        total_time=time,
+        use_feedforward=True,
+        use_friction_limit=True,
+        endpoint_buffer=8.0,
+        utilisation_margin=0.90
     )
 
-    plot_path_tracking(results)
-    plot_path_tracking_diagnostics(results)
-    plot_tire_utilization(
+    results4 = simulate_path_tracking(
+        A, B, E, C, K, L,
+        x0,
+        path_ref=(path[:, 0], path[:, 1]),
+        psi_ref=heading,
+        kappa_ref=curvature,
+        x_hat0=x_hat0,
+        dt=0.01,
+        total_time=time,
+        use_feedforward=True,
+        use_friction_limit=False,
+        endpoint_buffer=8.0,
+        utilisation_margin=0.90
+    )
+
+    results5 = simulate_path_tracking(
+        A, B, E, C, K, L,
+        x0,
+        path_ref=(path_m[:, 0], path_m[:, 1]),
+        psi_ref=heading_m,
+        kappa_ref=curvature_m,
+        x_hat0=x_hat0,
+        dt=0.01,
+        total_time=time_m,   # <-- use mellow path time here
+        use_feedforward=True,
+        use_friction_limit=True,
+        endpoint_buffer=8.0,
+        utilisation_margin=0.90
+    )
+
+    results6 = simulate_path_tracking(
+        A, B, E, C, K, L,
+        x0,
+        path_ref=(path_m[:, 0], path_m[:, 1]),
+        psi_ref=heading_m,
+        kappa_ref=curvature_m,
+        x_hat0=x_hat0,
+        dt=0.01,
+        total_time=time_m,   # <-- use mellow path time here
+        use_feedforward=True,
+        use_friction_limit=False,
+        endpoint_buffer=8.0,
+        utilisation_margin=0.90
+    )
+
+
+    print(f"Full path length: {results['s_total']:.2f} m")
+    print(f"Simulated valid path length: {results['s_stop']:.2f} m")
+    print(f"Curvature feasibility limit: {results['kappa_feasibility_limit']:.5f} 1/m")
+
+    plotting.observer_validation(results)
+    
+    """
+    print("\nnominal perf (mellow path no sat) \n")
+    plotting.print_performance(results4)
+
+    print("\nnominal perf (mellow path sat) \n")
+    plotting.print_performance(results)
+
+    print("\naggressive path sat \n")
+    plotting.print_performance(results5)
+
+    print("\naggressive path no sat \n")
+    plotting.print_performance(results6)
+
+    print("\nlow tyre stiffness perf \n")
+    plotting.print_performance(results2)
+
+    print("\nhigh tyre stiffness perf \n")
+    plotting.print_performance(results3)
+    #plotting.plot_variance_in_C(results, results2, results3)
+    
+
+    plotting.plot_path_tracking(results)
+    plotting.plot_path_tracking_diagnostics(results)
+    plotting.plot_tire_utilization(
     results["time"],
     results["front_util_history"],
     results["rear_util_history"]
     )
+    plotting.plot_acceleration_history(
+        results["time"],
+        results["a_max_history"]
+    )
+    
 
+    plotting.nominal_model_comparison_plots(
+        results=results,
+        results_nominal=results_nominal,
+        ey_limit=0.3,
+        epsi_limit_deg=5,
+        steering_limit_deg=36,
+        save_path="fig1_nominal_model_comparison.pdf"
+    )
+    """
+    '''
+    plotting.friction_comparison_plots(
+        time=results["time"],
+        time_other=results_nominal["time"],
+        front_util_history=results["front_util_history"],
+        front_util_other=results_nominal["front_util_history"],
+        rear_util_history=results["rear_util_history"],
+        rear_util_other=results_nominal["rear_util_history"],
+        a_max_history=results["a_max_history"],
+        a_max_other=results_nominal["a_max_history"],
+    )
+    '''
+    
 if __name__ == "__main__":
     main()

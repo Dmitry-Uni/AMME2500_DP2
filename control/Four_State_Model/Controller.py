@@ -41,7 +41,7 @@ def build_observer_matrix(A: np.ndarray, C: np.ndarray, p_L: np.ndarray):
 
 def controller_poles():
     # Desired closed-loop pole locations for the controller
-    p_K = np.array([-1.5 + 1.5j, -1.5 - 1.5j, -5, -6])  # Trial pole locations (real negative)
+    p_K = np.array([-2.3 + 2.4j, -2.3 - 2.4j, -8.5, -14.0])  # Trial pole locations (real negative)
     return p_K
 
 def observer_poles():

@@ -44,7 +44,18 @@ def init_path():
 '''
 
 def init_path():
-    results = path_generation.load_path_details("generated_paths/path_007.npz")
+    results = path_generation.load_path_details("generated_paths/path_008.npz")
+    u = results["u"]
+    path = results["path"]
+    curvature = results["curvature"]
+    radius = results["radius"]
+    heading = results["heading"]
+    bestsol = results["bestsol"]
+    length, time = main_dynamic.final_path_length_and_time(bestsol)
+    return u, path, curvature, radius, heading, length, time
+
+def init_path_mellow():
+    results = path_generation.load_path_details("generated_paths/path_005.npz")
     u = results["u"]
     path = results["path"]
     curvature = results["curvature"]
